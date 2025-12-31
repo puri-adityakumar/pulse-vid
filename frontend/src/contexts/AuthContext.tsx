@@ -15,6 +15,13 @@ interface AuthContextType {
   register: (email: string, password: string, name: string) => Promise<any>;
   login: (email: string, password: string) => Promise<any>;
   logout: () => void;
+  hasRole: (role: string) => boolean;
+  hasAnyRole: (roles: string[]) => boolean;
+  isAdmin: () => boolean;
+  isEditor: () => boolean;
+  isViewer: () => boolean;
+  canEdit: () => boolean;
+  canAdmin: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -73,8 +80,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
   };
 
+  const hasRole = (role: string): boolean => {
+    return user?.role === role;
+  };
+
+  const hasAnyRole = (roles: string[]): boolean => {
+    return user ? roles.includes(user.role) : false;
+  };
+
+  const isAdmin = (): boolean => {
+    return user?.role === 'admin';
+  };
+
+  const isEditor = (): boolean => {
+    return user?.role === 'editor';
+  };
+
+  const isViewer = (): boolean => {
+    return user?.role === 'viewer';
+  };
+
+  const canEdit = (): boolean => {
+    return user ? ['admin', 'editor'].includes(user.role) : false;
+  };
+
+  const canAdmin = (): boolean => {
+    return user?.role === 'admin';
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, register, login, logout }}>
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      register,
+      login,
+      logout,
+      hasRole,
+      hasAnyRole,
+      isAdmin,
+      isEditor,
+      isViewer,
+      canEdit,
+      canAdmin
+    }}>
       {children}
     </AuthContext.Provider>
   );
