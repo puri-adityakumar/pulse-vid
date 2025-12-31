@@ -19,7 +19,10 @@ export default function Dashboard() {
 
   const getThumbnailUrl = (video: Video) => {
     if (!video.thumbnailPath) return null;
-    return `http://localhost:5000${video.thumbnailPath.replace(/^./uploads/, '/uploads')}`;
+    const cleanedPath = video.thumbnailPath.startsWith('./uploads')
+      ? video.thumbnailPath.replace('./uploads', '/uploads')
+      : video.thumbnailPath;
+    return 'http://localhost:5000' + cleanedPath;
   };
 
   const handleVideoClick = (videoId: string) => {

@@ -65,7 +65,10 @@ export default function VideoDetailPage() {
 
   const getThumbnailUrl = () => {
     if (!video || !video.thumbnailPath) return '';
-    return `http://localhost:5000${video.thumbnailPath.replace(/^./uploads/, '/uploads')}`;
+    const cleanedPath = video.thumbnailPath.startsWith('./uploads')
+      ? video.thumbnailPath.replace('./uploads', '/uploads')
+      : video.thumbnailPath;
+    return 'http://localhost:5000' + cleanedPath;
   };
 
   const formatFileSize = (bytes: number) => {
