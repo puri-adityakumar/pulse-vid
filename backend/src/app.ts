@@ -6,6 +6,7 @@ import path from 'path';
 import { connectDB } from './config/database';
 import authRoutes from './routes/authRoutes';
 import videoRoutes from './routes/videoRoutes';
+import adminRoutes from './routes/adminRoutes';
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/videos', videoRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
