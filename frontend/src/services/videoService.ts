@@ -11,10 +11,14 @@ export interface Video {
   mimeType: string;
   size: number;
   uploadPath: string;
+  processedPath?: string;
+  thumbnailPath?: string;
   duration?: number;
   width?: number;
   height?: number;
   processingStatus: 'pending' | 'processing' | 'completed' | 'failed';
+  processingProgress?: number;
+  processingError?: string;
   uploadDate: string;
 }
 

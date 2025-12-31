@@ -3,9 +3,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getVideos, deleteVideo, Video } from '../services/videoService';
 import { useSocket } from '../hooks/useSocket';
-import { 
-  LogOut, Video as VideoIcon, Upload, Trash2, Film, 
-  Clock, HardDrive, Filter, Plus, Wifi, WifiOff 
+import {
+  LogOut, Video as VideoIcon, Upload, Trash2, Film,
+  Clock, HardDrive, Filter, Plus, Wifi, WifiOff, Play
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -16,6 +16,15 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const getThumbnailUrl = (video: Video) => {
+    if (!video.thumbnailPath) return null;
+    return `http://localhost:5000${video.thumbnailPath.replace(/^./uploads/, '/uploads')}`;
+  };
+
+  const handleVideoClick = (videoId: string) => {
+    navigate(`/videos/${videoId}`);
+  };
 
   useEffect(() => {
     loadVideos();
@@ -232,61 +241,97 @@ export default function Dashboard() {
               Upload Your First Video
             </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {videos.map((video) => (
-              <div key={video._id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition">
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 truncate mb-2">
-                        {video.originalName}
-                      </h3>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(video.processingStatus)}`}>
-                        {video.processingStatus}
-                      </span>
-                      {video.processingStatus === 'processing' && video.processingProgress > 0 && (
-                        <span className="ml-2 text-xs text-blue-600">
-                          {video.processingProgress}%
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => handleDelete(video._id)}
-                      disabled={deletingId === video._id}
-                      className="text-gray-400 hover:text-red-600 transition disabled:opacity-50"
-                    >
-                      <Trash2 className="h-5 w-5" />
-                    </button>
-                  </div>
+         ) : (
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+             {videos.map((video) => {
+               const thumbnailUrl = getThumbnailUrl(video);
+               return (
+                 <div
+                   key={video._id}
+                   className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition cursor-pointer"
+                   onClick={() => handleVideoClick(video._id)}
+                 >
+                   {thumbnailUrl ? (
+                     <div className="aspect-video bg-gray-100">
+                       <img
+                         src={thumbnailUrl}
+                         alt={video.originalName}
+                         className="w-full h-full object-cover"
+                         onError={(e) => {
+                           (e.target as HTMLImageElement).style.display = 'none';
+                         }}
+                       />
+                     </div>
+                   ) : (
+                     <div className="aspect-video bg-gray-100 flex items-center justify-center">
+                       <Film className="h-12 w-12 text-gray-400" />
+                     </div>
+                   )}
 
-                  <div className="space-y-2 text-sm text-gray-600">
-                    <div className="flex items-center">
-                      <HardDrive className="h-4 w-4 mr-2 flex-shrink-0" />
-                      <span>Size: {formatFileSize(video.size)}</span>
-                    </div>
-                    {video.duration && (
-                      <div className="flex items-center">
-                        <Clock className="h-4 w-4 mr-2 flex-shrink-0" />
-                        <span>Duration: {formatDuration(video.duration)}</span>
-                      </div>
-                    )}
-                    {video.width && video.height && (
-                      <div className="flex items-center">
-                        <Film className="h-4 w-4 mr-2 flex-shrink-0" />
-                        <span>Resolution: {video.width}x{video.height}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center">
-                      <Clock className="h-4 w-4 mr-2 flex-shrink-0" />
-                      <span>Uploaded: {formatDate(video.uploadDate)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                   <div className="p-6">
+                     <div className="flex items-start justify-between mb-4">
+                       <div className="flex-1">
+                         <h3 className="text-lg font-semibold text-gray-900 truncate mb-2">
+                           {video.originalName}
+                         </h3>
+                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(video.processingStatus)}`}>
+                           {video.processingStatus}
+                         </span>
+                         {video.processingStatus === 'processing' && video.processingProgress > 0 && (
+                           <span className="ml-2 text-xs text-blue-600">
+                             {video.processingProgress}%
+                           </span>
+                         )}
+                       </div>
+                       <button
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           handleDelete(video._id);
+                         }}
+                         disabled={deletingId === video._id}
+                         className="text-gray-400 hover:text-red-600 transition disabled:opacity-50"
+                       >
+                         <Trash2 className="h-5 w-5" />
+                       </button>
+                     </div>
+
+                     <div className="space-y-2 text-sm text-gray-600">
+                       <div className="flex items-center">
+                         <HardDrive className="h-4 w-4 mr-2 flex-shrink-0" />
+                         <span>Size: {formatFileSize(video.size)}</span>
+                       </div>
+                       {video.duration && (
+                         <div className="flex items-center">
+                           <Clock className="h-4 w-4 mr-2 flex-shrink-0" />
+                           <span>Duration: {formatDuration(video.duration)}</span>
+                         </div>
+                       )}
+                       {video.width && video.height && (
+                         <div className="flex items-center">
+                           <Film className="h-4 w-4 mr-2 flex-shrink-0" />
+                           <span>Resolution: {video.width}x{video.height}</span>
+                         </div>
+                       )}
+                       <div className="flex items-center">
+                         <Clock className="h-4 w-4 mr-2 flex-shrink-0" />
+                         <span>Uploaded: {formatDate(video.uploadDate)}</span>
+                       </div>
+                     </div>
+
+                   {video.processingStatus === 'completed' && (
+                     <div className="mt-4 pt-4 border-t border-gray-200">
+                       <div className="flex items-center text-sm text-blue-600 hover:text-blue-700">
+                         <Play className="h-4 w-4 mr-2" />
+                         Watch Video
+                       </div>
+                     </div>
+                   )}
+                 </div>
+               </div>
+             );
+             })}
+           </div>
+         )}
       </main>
     </div>
   );

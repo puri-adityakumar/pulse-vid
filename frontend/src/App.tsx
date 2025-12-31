@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import Dashboard from './pages/Dashboard';
 import VideoUploadPage from './pages/VideoUploadPage';
+import VideoDetailPage from './pages/VideoDetailPage';
 import { Video, LogIn, UserPlus } from 'lucide-react';
 
 function Home() {
@@ -58,13 +59,21 @@ function App() {
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/upload" 
+          <Route
+            path="/upload"
             element={
               <ProtectedRoute>
                 <VideoUploadPage />
               </ProtectedRoute>
-            } 
+            }
+          />
+          <Route
+            path="/videos/:id"
+            element={
+              <ProtectedRoute>
+                <VideoDetailPage />
+              </ProtectedRoute>
+            }
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
