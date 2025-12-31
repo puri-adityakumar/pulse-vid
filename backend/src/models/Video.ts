@@ -8,10 +8,14 @@ export interface IVideo extends Document {
   mimeType: string;
   size: number;
   uploadPath: string;
+  processedPath?: string;
+  thumbnailPath?: string;
   duration?: number;
   width?: number;
   height?: number;
   processingStatus: 'pending' | 'processing' | 'completed' | 'failed';
+  processingProgress: number;
+  processingError?: string;
   uploadDate: Date;
 }
 
@@ -46,6 +50,12 @@ const videoSchema = new Schema<IVideo>({
     type: String,
     required: true
   },
+  processedPath: {
+    type: String
+  },
+  thumbnailPath: {
+    type: String
+  },
   duration: {
     type: Number
   },
@@ -59,6 +69,13 @@ const videoSchema = new Schema<IVideo>({
     type: String,
     enum: ['pending', 'processing', 'completed', 'failed'],
     default: 'pending'
+  },
+  processingProgress: {
+    type: Number,
+    default: 0
+  },
+  processingError: {
+    type: String
   },
   uploadDate: {
     type: Date,

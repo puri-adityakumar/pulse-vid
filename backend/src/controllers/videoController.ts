@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Video, { IVideo } from '../models/Video';
 import { extractVideoMetadata } from '../utils/videoMetadata';
+import { processingQueue } from '../services/processingQueue';
 import fs from 'fs';
 import path from 'path';
 
@@ -54,9 +55,16 @@ export const uploadVideo = async (req: Request, res: Response): Promise<void> =>
 
     console.log('Video created in database:', video._id);
 
+    processingQueue.enqueue({
+      videoId: video._id.toString(),
+      userId: req.user.id,
+      inputPath: filePath,
+      filename: fileName
+    });
+
     res.status(201).json({
       success: true,
-      message: 'Video uploaded successfully',
+      message: 'Video uploaded successfully and queued for processing',
       video
     });
   } catch (error) {
@@ -187,10 +195,20 @@ export const deleteVideo = async (req: Request, res: Response): Promise<void> =>
 
     await Video.findByIdAndDelete(req.params.id);
 
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-      console.log('File deleted:', filePath);
+    const filesToDelete = [filePath];
+    if (video.processedPath) {
+      filesToDelete.push(video.processedPath);
     }
+    if (video.thumbnailPath) {
+      filesToDelete.push(video.thumbnailPath);
+    }
+
+    filesToDelete.forEach(file => {
+      if (fs.existsSync(file)) {
+        fs.unlinkSync(file);
+        console.log('File deleted:', file);
+      }
+    });
 
     res.json({
       success: true,
