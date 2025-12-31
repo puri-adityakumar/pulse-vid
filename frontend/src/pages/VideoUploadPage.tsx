@@ -1,12 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { uploadVideo } from '../services/videoService';
-import { Upload, X, Film, FileVideo, AlertCircle } from 'lucide-react';
+import { useSocket } from '../hooks/useSocket';
+import { Upload, X, Film, FileVideo, AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function VideoUploadPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { processingProgress, onProcessingComplete, onProcessingFailed, onProcessingStarted } = useSocket(user?.id);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [currentVideoId, setCurrentVideoId] = useState<string | null>(null);
+  const [currentProgress, setCurrentProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -59,14 +66,16 @@ export default function VideoUploadPage() {
 
     setUploading(true);
     setError(null);
+    setCurrentProgress(0);
 
     try {
-      await uploadVideo(selectedFile);
-      navigate('/dashboard');
+      const response = await uploadVideo(selectedFile);
+      setCurrentVideoId(response.video._id);
+      setUploading(false);
+      setProcessing(true);
     } catch (err: any) {
       console.error('Upload error:', err);
       setError(err.response?.data?.message || 'Failed to upload video. Please try again.');
-    } finally {
       setUploading(false);
     }
   };
@@ -74,7 +83,49 @@ export default function VideoUploadPage() {
   const handleCancel = () => {
     setSelectedFile(null);
     setError(null);
+    setCurrentProgress(0);
+    setProcessing(false);
   };
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const unsubscribeStarted = onProcessingStarted((data) => {
+      if (currentVideoId) {
+        setCurrentProgress(0);
+        setProcessing(true);
+      }
+    });
+
+    const unsubscribeProgress = onProcessingProgress((data) => {
+      if (data.videoId === currentVideoId) {
+        setCurrentProgress(data.progress);
+      }
+    });
+
+    const unsubscribeComplete = onProcessingComplete((data) => {
+      if (data.videoId === currentVideoId) {
+        setCurrentProgress(100);
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1000);
+      }
+    });
+
+    const unsubscribeFailed = onProcessingFailed((data) => {
+      if (data.videoId === currentVideoId) {
+        setError(`Processing failed: ${data.error}`);
+        setProcessing(false);
+      }
+    });
+
+    return () => {
+      unsubscribeStarted?.();
+      unsubscribeProgress?.();
+      unsubscribeComplete?.();
+      unsubscribeFailed?.();
+    };
+  }, [user?.id, currentVideoId, onProcessingStarted, onProcessingProgress, onProcessingComplete, onProcessingFailed, navigate]);
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -131,79 +182,90 @@ export default function VideoUploadPage() {
                 Supported formats: MP4, AVI, MOV, MKV, WEBM (Max 150MB)
               </p>
             </label>
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-start justify-between mb-6">
-              <div className="flex items-start">
-                <div className="bg-blue-100 p-3 rounded-lg mr-4">
-                  <FileVideo className="h-8 w-8 text-blue-600" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                    {selectedFile.name}
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    {formatFileSize(selectedFile.size)} • {selectedFile.type}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleCancel}
-                disabled={uploading}
-                className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
+           </div>
+         ) : (
+           <div className="bg-white rounded-lg shadow-md p-6">
+             <div className="flex items-start justify-between mb-6">
+               <div className="flex items-start">
+                 <div className="bg-blue-100 p-3 rounded-lg mr-4">
+                   <FileVideo className="h-8 w-8 text-blue-600" />
+                 </div>
+                 <div className="flex-1">
+                   <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                     {selectedFile.name}
+                   </h3>
+                   <p className="text-sm text-gray-500">
+                     {formatFileSize(selectedFile.size)} • {selectedFile.type}
+                   </p>
+                 </div>
+                 {!uploading && !processing && (
+                   <button
+                     onClick={handleCancel}
+                     disabled={uploading || processing}
+                     className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                   >
+                     <X className="h-6 w-6" />
+                   </button>
+                 )}
+               </div>
+             </div>
 
-            <div className="space-y-3">
-              <div className="text-sm text-gray-600">
-                <p className="font-medium mb-1">Ready to upload</p>
-                <p className="text-gray-500">
-                  Your video will be processed and available for streaming after upload.
-                </p>
-              </div>
+             <div className="space-y-3">
+               {(uploading || processing) && (
+                 <div>
+                   <div className="flex items-center justify-between mb-2">
+                     <span className="text-sm font-medium text-gray-700">
+                       {uploading ? 'Uploading...' : processing && currentProgress === 0 ? 'Queued for processing...' : `Processing... ${currentProgress}%`}
+                     </span>
+                     {currentProgress === 100 && (
+                       <CheckCircle className="h-5 w-5 text-green-600" />
+                     )}
+                   </div>
+                   <div className="w-full bg-gray-200 rounded-full h-3">
+                     <div 
+                       className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                       style={{ width: `${currentProgress}%` }}
+                     ></div>
+                   </div>
+                 </div>
+               )}
 
-              {error && (
-                <div className="flex items-start bg-red-50 text-red-700 p-4 rounded-lg">
-                  <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm">{error}</p>
-                </div>
-              )}
+               {!uploading && !processing && (
+                 <div className="text-sm text-gray-600">
+                   <p className="font-medium mb-1">Ready to upload</p>
+                   <p className="text-gray-500">
+                     Your video will be processed and available for streaming after upload.
+                   </p>
+                 </div>
+               )}
 
-              <button
-                onClick={handleUpload}
-                disabled={uploading}
-                className={`w-full py-3 px-4 rounded-lg font-medium transition
-                  ${uploading
-                    ? 'bg-gray-400 cursor-not-allowed text-white'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                  }`}
-              >
-                {uploading ? (
-                  <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Uploading...
-                  </span>
-                ) : (
-                  'Upload Video'
-                )}
-              </button>
+               {error && (
+                 <div className="flex items-start bg-red-50 text-red-700 p-4 rounded-lg">
+                   <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                   <p className="text-sm">{error}</p>
+                 </div>
+               )}
 
-              <button
-                onClick={handleCancel}
-                disabled={uploading}
-                className="w-full py-3 px-4 rounded-lg font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
+               {!uploading && !processing && (
+                 <>
+                   <button
+                     onClick={handleUpload}
+                     className="w-full py-3 px-4 rounded-lg font-medium transition bg-blue-600 hover:bg-blue-700 text-white"
+                   >
+                     Upload Video
+                   </button>
+
+                   <button
+                     onClick={handleCancel}
+                     className="w-full py-3 px-4 rounded-lg font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
+                   >
+                     Cancel
+                   </button>
+                 </>
+               )}
+             </div>
+           </div>
+         )}
       </div>
     </div>
   );

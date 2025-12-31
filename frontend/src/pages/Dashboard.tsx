@@ -2,14 +2,16 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getVideos, deleteVideo, Video } from '../services/videoService';
+import { useSocket } from '../hooks/useSocket';
 import { 
   LogOut, Video as VideoIcon, Upload, Trash2, Film, 
-  Clock, HardDrive, Filter, Plus 
+  Clock, HardDrive, Filter, Plus, Wifi, WifiOff 
 } from 'lucide-react';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { isConnected, processingProgress, onProcessingProgress, onProcessingComplete, onProcessingFailed } = useSocket(user?.id);
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -18,6 +20,40 @@ export default function Dashboard() {
   useEffect(() => {
     loadVideos();
   }, [statusFilter]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const unsubscribeProgress = onProcessingProgress((data) => {
+      setVideos(prevVideos => 
+        prevVideos.map(v => 
+          v._id === data.videoId 
+            ? { ...v, processingProgress: data.progress }
+            : v
+        )
+      );
+    });
+
+    const unsubscribeComplete = onProcessingComplete((data) => {
+      loadVideos();
+    });
+
+    const unsubscribeFailed = onProcessingFailed((data) => {
+      setVideos(prevVideos => 
+        prevVideos.map(v => 
+          v._id === data.videoId 
+            ? { ...v, processingStatus: 'failed' as const, processingError: data.error }
+            : v
+        )
+      );
+    });
+
+    return () => {
+      unsubscribeProgress?.();
+      unsubscribeComplete?.();
+      unsubscribeFailed?.();
+    };
+  }, [user?.id, onProcessingProgress, onProcessingComplete, onProcessingFailed]);
 
   const loadVideos = async () => {
     try {
@@ -100,6 +136,11 @@ export default function Dashboard() {
               <span className="ml-2 text-xl font-bold text-gray-900">Video Platform</span>
             </div>
             <div className="flex items-center space-x-4">
+              {isConnected ? (
+                <Wifi className="h-5 w-5 text-green-500" title="Connected" />
+              ) : (
+                <WifiOff className="h-5 w-5 text-red-500" title="Disconnected" />
+              )}
               <span className="text-gray-700">{user?.name}</span>
               <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
                 {user?.role}
@@ -111,9 +152,27 @@ export default function Dashboard() {
                 <LogOut className="h-5 w-5 mr-1" />
                 Logout
               </button>
-            </div>
-          </div>
-        </div>
+                   </div>
+
+                  {video.processingStatus === 'processing' && video.processingProgress > 0 && (
+                    <div className="mt-4">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${video.processingProgress}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Processing video...</p>
+                    </div>
+                  )}
+
+                  {video.processingStatus === 'failed' && video.processingError && (
+                    <div className="mt-4 p-2 bg-red-50 rounded text-xs text-red-700">
+                      {video.processingError}
+                    </div>
+                  )}
+                 </div>
+               </div>
       </nav>
 
       <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -186,6 +245,11 @@ export default function Dashboard() {
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(video.processingStatus)}`}>
                         {video.processingStatus}
                       </span>
+                      {video.processingStatus === 'processing' && video.processingProgress > 0 && (
+                        <span className="ml-2 text-xs text-blue-600">
+                          {video.processingProgress}%
+                        </span>
+                      )}
                     </div>
                     <button
                       onClick={() => handleDelete(video._id)}
