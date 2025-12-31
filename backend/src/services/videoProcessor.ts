@@ -116,8 +116,8 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
         });
     });
 
-    const video = await Video.findById(videoId);
-    if (!video) {
+    const updatedVideo = await Video.findById(videoId);
+    if (!updatedVideo) {
       throw new Error('Video not found');
     }
 
