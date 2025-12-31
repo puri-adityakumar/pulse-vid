@@ -3,13 +3,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getVideos, deleteVideo, Video } from '../services/videoService';
 import { useSocket } from '../hooks/useSocket';
+import RoleGuard from '../components/auth/RoleGuard';
 import {
   LogOut, Video as VideoIcon, Upload, Trash2, Film,
-  Clock, HardDrive, Filter, Plus, Wifi, WifiOff, Play
+  Clock, HardDrive, Filter, Plus, Wifi, WifiOff, Play, Users, Shield
 } from 'lucide-react';
 
 export default function Dashboard() {
-  const { user, logout } = useAuth();
+  const { user, logout, canEdit, isAdmin } = useAuth();
   const navigate = useNavigate();
   const { isConnected, processingProgress, onProcessingProgress, onProcessingComplete, onProcessingFailed } = useSocket(user?.id);
   const [videos, setVideos] = useState<Video[]>([]);
@@ -138,6 +139,15 @@ export default function Dashboard() {
     });
   };
 
+  const getRoleBadgeColor = (role: string) => {
+    const colors = {
+      admin: 'bg-purple-100 text-purple-800',
+      editor: 'bg-blue-100 text-blue-800',
+      viewer: 'bg-gray-100 text-gray-800'
+    };
+    return colors[role as keyof typeof colors] || colors.viewer;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-white shadow">
@@ -154,9 +164,19 @@ export default function Dashboard() {
                 <WifiOff className="h-5 w-5 text-red-500" title="Disconnected" />
               )}
               <span className="text-gray-700">{user?.name}</span>
-              <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getRoleBadgeColor(user?.role || 'viewer')}`}>
                 {user?.role}
               </span>
+              <RoleGuard allowedRoles={['admin']}>
+                <button
+                  onClick={() => navigate('/admin/users')}
+                  className="flex items-center px-3 py-2 rounded-md text-sm font-medium text-purple-600 hover:text-purple-900 hover:bg-purple-50"
+                  title="Manage Users"
+                >
+                  <Users className="h-5 w-5 mr-1" />
+                  <Shield className="h-5 w-5" />
+                </button>
+              </RoleGuard>
               <button
                 onClick={handleLogout}
                 className="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100"
@@ -197,13 +217,15 @@ export default function Dashboard() {
               Manage your uploaded videos
             </p>
           </div>
-          <button
-            onClick={() => navigate('/upload')}
-            className="mt-4 sm:mt-0 flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Upload Video
-          </button>
+          <RoleGuard allowedRoles={['admin', 'editor']}>
+            <button
+              onClick={() => navigate('/upload')}
+              className="mt-4 sm:mt-0 flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Upload Video
+            </button>
+          </RoleGuard>
         </div>
 
         <div className="mb-6 flex items-center space-x-4">
@@ -229,21 +251,23 @@ export default function Dashboard() {
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           </div>
-        ) : videos.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg shadow">
-            <Film className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No videos yet</h3>
-            <p className="text-gray-500 mb-6">
-              Upload your first video to get started
-            </p>
-            <button
-              onClick={() => navigate('/upload')}
-              className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
-            >
-              <Upload className="h-5 w-5 mr-2" />
-              Upload Your First Video
-            </button>
-          </div>
+         ) : videos.length === 0 ? (
+           <div className="text-center py-12 bg-white rounded-lg shadow">
+             <Film className="mx-auto h-16 w-16 text-gray-400 mb-4" />
+             <h3 className="text-lg font-medium text-gray-900 mb-2">No videos yet</h3>
+             <p className="text-gray-500 mb-6">
+               {canEdit() ? 'Upload your first video to get started' : 'Wait for an editor or admin to upload videos'}
+             </p>
+             <RoleGuard allowedRoles={['admin', 'editor']}>
+               <button
+                 onClick={() => navigate('/upload')}
+                 className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+               >
+                 <Upload className="h-5 w-5 mr-2" />
+                 Upload Your First Video
+               </button>
+             </RoleGuard>
+           </div>
          ) : (
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
              {videos.map((video) => {
@@ -285,18 +309,20 @@ export default function Dashboard() {
                              {video.processingProgress}%
                            </span>
                          )}
-                       </div>
-                       <button
-                         onClick={(e) => {
-                           e.stopPropagation();
-                           handleDelete(video._id);
-                         }}
-                         disabled={deletingId === video._id}
-                         className="text-gray-400 hover:text-red-600 transition disabled:opacity-50"
-                       >
-                         <Trash2 className="h-5 w-5" />
-                       </button>
-                     </div>
+                        </div>
+                        <RoleGuard allowedRoles={['admin', 'editor']}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(video._id);
+                            }}
+                            disabled={deletingId === video._id}
+                            className="text-gray-400 hover:text-red-600 transition disabled:opacity-50"
+                          >
+                            <Trash2 className="h-5 w-5" />
+                          </button>
+                        </RoleGuard>
+                      </div>
 
                      <div className="space-y-2 text-sm text-gray-600">
                        <div className="flex items-center">

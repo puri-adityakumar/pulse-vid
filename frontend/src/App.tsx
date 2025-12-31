@@ -6,6 +6,8 @@ import RegisterPage from './pages/RegisterPage';
 import Dashboard from './pages/Dashboard';
 import VideoUploadPage from './pages/VideoUploadPage';
 import VideoDetailPage from './pages/VideoDetailPage';
+import UserManagementPage from './pages/UserManagementPage';
+import CreateUserPage from './pages/CreateUserPage';
 import { Video, LogIn, UserPlus } from 'lucide-react';
 
 function Home() {
@@ -72,6 +74,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <VideoDetailPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <ProtectedRoute>
+                <UserManagementPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/users/create"
+            element={
+              <ProtectedRoute>
+                <CreateUserPage />
               </ProtectedRoute>
             }
           />
