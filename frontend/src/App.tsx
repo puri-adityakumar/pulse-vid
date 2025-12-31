@@ -4,6 +4,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import Dashboard from './pages/Dashboard';
+import VideoUploadPage from './pages/VideoUploadPage';
 import { Video, LogIn, UserPlus } from 'lucide-react';
 
 function Home() {
@@ -54,6 +55,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/upload" 
+            element={
+              <ProtectedRoute>
+                <VideoUploadPage />
               </ProtectedRoute>
             } 
           />
