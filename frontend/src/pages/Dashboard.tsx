@@ -6,7 +6,7 @@ import { useSocket } from '../hooks/useSocket';
 import RoleGuard from '../components/auth/RoleGuard';
 import {
   LogOut, Video as VideoIcon, Upload, Trash2, Film,
-  Clock, HardDrive, Filter, Plus, Wifi, WifiOff, Play, Users, Shield
+  Clock, HardDrive, Filter, Plus, Wifi, WifiOff, Play, Users, Shield, Search
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -16,6 +16,8 @@ export default function Dashboard() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'largest' | 'smallest'>('newest');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const getThumbnailUrl = (video: Video) => {
@@ -32,7 +34,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadVideos();
-  }, [statusFilter]);
+  }, [statusFilter, search, sortBy]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -71,9 +73,34 @@ export default function Dashboard() {
   const loadVideos = async () => {
     try {
       setLoading(true);
-      const params = statusFilter !== 'all' ? { status: statusFilter } : {};
+      const params: any = {};
+      if (statusFilter !== 'all') params.status = statusFilter;
       const response = await getVideos(params);
-      setVideos(response.videos);
+      let filteredVideos = response.videos;
+
+      if (search) {
+        const searchLower = search.toLowerCase();
+        filteredVideos = filteredVideos.filter(v =>
+          v.originalName.toLowerCase().includes(searchLower)
+        );
+      }
+
+      filteredVideos = filteredVideos.sort((a, b) => {
+        switch (sortBy) {
+          case 'newest':
+            return new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime();
+          case 'oldest':
+            return new Date(a.uploadDate).getTime() - new Date(b.uploadDate).getTime();
+          case 'largest':
+            return b.size - a.size;
+          case 'smallest':
+            return a.size - b.size;
+          default:
+            return 0;
+        }
+      });
+
+      setVideos(filteredVideos);
     } catch (error) {
       console.error('Failed to load videos:', error);
     } finally {
@@ -228,23 +255,51 @@ export default function Dashboard() {
           </RoleGuard>
         </div>
 
-        <div className="mb-6 flex items-center space-x-4">
-          <Filter className="h-5 w-5 text-gray-400" />
-          <label htmlFor="status-filter" className="text-sm font-medium text-gray-700">
-            Filter by status:
-          </label>
-          <select
-            id="status-filter"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="block pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border"
-          >
-            <option value="all">All Videos</option>
-            <option value="pending">Pending</option>
-            <option value="processing">Processing</option>
-            <option value="completed">Completed</option>
-            <option value="failed">Failed</option>
-          </select>
+        <div className="mb-6 space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search videos by name..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div className="flex items-center space-x-4">
+            <Filter className="h-5 w-5 text-gray-400" />
+            <label htmlFor="status-filter" className="text-sm font-medium text-gray-700">
+              Filter by status:
+            </label>
+            <select
+              id="status-filter"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="block pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border"
+            >
+              <option value="all">All Videos</option>
+              <option value="pending">Pending</option>
+              <option value="processing">Processing</option>
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
+            </select>
+
+            <label htmlFor="sort-filter" className="text-sm font-medium text-gray-700 ml-4">
+              Sort by:
+            </label>
+            <select
+              id="sort-filter"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'newest' | 'oldest' | 'largest' | 'smallest')}
+              className="block pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md border"
+            >
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="largest">Largest</option>
+              <option value="smallest">Smallest</option>
+            </select>
+          </div>
         </div>
 
         {loading ? (

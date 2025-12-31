@@ -8,6 +8,7 @@ import VideoUploadPage from './pages/VideoUploadPage';
 import VideoDetailPage from './pages/VideoDetailPage';
 import UserManagementPage from './pages/UserManagementPage';
 import CreateUserPage from './pages/CreateUserPage';
+import NotFoundPage from './pages/NotFoundPage';
 import { Video, LogIn, UserPlus } from 'lucide-react';
 
 function Home() {
@@ -93,7 +94,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Router>
     </AuthProvider>
