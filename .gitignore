@@ -48,7 +48,9 @@ logs
 Thumbs.db
 
 # Backend
-backend/uploads/
+backend/uploads/*
+!backend/uploads/.gitkeep
+!backend/uploads/**/.gitkeep
 backend/dist/
 
 # Frontend
