@@ -222,3 +222,91 @@ export const deleteVideo = async (req: Request, res: Response): Promise<void> =>
     });
   }
 };
+
+export const streamVideo = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message: 'User not authenticated'
+      });
+      return;
+    }
+
+    const video = await Video.findOne({
+      _id: req.params.id,
+      userId: req.user.id,
+      organizationId: req.user.organizationId
+    });
+
+    if (!video) {
+      res.status(404).json({
+        success: false,
+        message: 'Video not found'
+      });
+      return;
+    }
+
+    if (video.processingStatus !== 'completed') {
+      res.status(400).json({
+        success: false,
+        message: `Video is ${video.processingStatus}. Please wait for processing to complete.`
+      });
+      return;
+    }
+
+    const videoPath = video.processedPath || video.uploadPath;
+
+    if (!fs.existsSync(videoPath)) {
+      res.status(404).json({
+        success: false,
+        message: 'Video file not found'
+      });
+      return;
+    }
+
+    const stat = fs.statSync(videoPath);
+    const fileSize = stat.size;
+    const range = req.headers.range;
+
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+      const chunksize = end - start + 1;
+      const file = fs.createReadStream(videoPath, { start, end });
+
+      const head = {
+        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunksize,
+        'Content-Type': 'video/mp4',
+        'Content-Disposition': `inline; filename="${video.originalName}"`,
+        'Cache-Control': 'public, max-age=31536000'
+      };
+
+      res.writeHead(206, head);
+      file.pipe(res);
+    } else {
+      const head = {
+        'Content-Length': fileSize,
+        'Content-Type': 'video/mp4',
+        'Content-Disposition': `inline; filename="${video.originalName}"`,
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'public, max-age=31536000'
+      };
+
+      res.writeHead(200, head);
+      fs.createReadStream(videoPath).pipe(res);
+    }
+  } catch (error) {
+    console.error('Stream video error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to stream video'
+      });
+    }
+  }
+};
