@@ -8,10 +8,7 @@ const generateToken = (userId: string): string => {
   if (!secret) {
     throw new Error('JWT_SECRET is not defined');
   }
-  const expire = process.env.JWT_EXPIRE || '24h';
-  return jwt.sign({ id: userId }, secret, {
-    expiresIn: expire
-  });
+  return jwt.sign({ id: userId }, secret, { expiresIn: '24h' });
 };
 
 export const register = async (req: Request, res: Response): Promise<void> => {
