@@ -57,6 +57,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
+export { ToastProvider as default };
 export function useToast() {
   const context = useContext(ToastContext);
   if (context === undefined) {
