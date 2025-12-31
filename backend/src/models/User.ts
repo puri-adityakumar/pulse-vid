@@ -11,7 +11,7 @@ export interface IUser extends Document {
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
 
-const userSchema = new Schema<IUser>({
+const userSchema: mongoose.Schema<IUser> = new mongoose.Schema({
   email: {
     type: String,
     required: [true, 'Email is required'],
@@ -44,8 +44,10 @@ const userSchema = new Schema<IUser>({
   }
 }, { timestamps: true });
 
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
+(userSchema as any).pre('save', async function(this: IUser, next: any) {
+  if (!this.isModified('password')) {
+    return next();
+  }
   this.password = await bcrypt.hash(this.password, 10);
   next();
 });
