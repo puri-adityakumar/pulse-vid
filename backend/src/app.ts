@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import path from 'path';
 import { connectDB } from './config/database';
 import authRoutes from './routes/authRoutes';
 import videoRoutes from './routes/videoRoutes';
@@ -18,6 +19,8 @@ app.use(cors({
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/videos', videoRoutes);
