@@ -15,6 +15,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password, name } = req.body;
 
+    console.log('Registration attempt:', { email, name });
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       res.status(400).json({ 
@@ -24,17 +26,25 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    console.log('Finding or creating organization...');
     let organization = await Organization.findOne({ name: 'Default Organization' });
     if (!organization) {
+      console.log('Creating default organization...');
       organization = await Organization.create({ name: 'Default Organization' });
+      console.log('Organization created:', organization._id);
+    } else {
+      console.log('Found organization:', organization._id);
     }
 
+    console.log('Creating user...');
     const user = await User.create({
       email,
       password,
       name,
       organizationId: organization._id
     });
+
+    console.log('User created successfully:', user._id);
 
     res.status(201).json({
       success: true,
@@ -48,6 +58,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error) {
     console.error('Register error:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     res.status(500).json({ 
       success: false, 
       message: 'Registration failed' 
