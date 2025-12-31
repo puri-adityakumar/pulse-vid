@@ -4,8 +4,13 @@ import Organization from '../models/Organization';
 import jwt from 'jsonwebtoken';
 
 const generateToken = (userId: string): string => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET!, {
-    expiresIn: process.env.JWT_EXPIRE
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET is not defined');
+  }
+  const expire = process.env.JWT_EXPIRE || '24h';
+  return jwt.sign({ id: userId }, secret, {
+    expiresIn: expire
   });
 };
 
@@ -99,6 +104,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
 export const getMe = async (req: Request, res: Response): Promise<void> => {
   try {
+    if (!req.user || !req.user.id) {
+      res.status(401).json({ 
+        success: false, 
+        message: 'Not authorized' 
+      });
+      return;
+    }
     const user = await User.findById(req.user.id).select('-password');
     res.json({
       success: true,
