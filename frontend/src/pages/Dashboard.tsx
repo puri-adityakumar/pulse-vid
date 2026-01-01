@@ -211,27 +211,9 @@ export default function Dashboard() {
                 <LogOut className="h-5 w-5 mr-1" />
                 Logout
               </button>
-                   </div>
-
-                  {video.processingStatus === 'processing' && video.processingProgress > 0 && (
-                    <div className="mt-4">
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${video.processingProgress}%` }}
-                        ></div>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">Processing video...</p>
-                    </div>
-                  )}
-
-                  {video.processingStatus === 'failed' && video.processingError && (
-                    <div className="mt-4 p-2 bg-red-50 rounded text-xs text-red-700">
-                      {video.processingError}
-                    </div>
-                  )}
-                 </div>
-               </div>
+            </div>
+          </div>
+        </div>
       </nav>
 
       <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
