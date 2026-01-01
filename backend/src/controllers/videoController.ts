@@ -2,8 +2,8 @@ import { Request, Response } from 'express';
 import Video, { IVideo } from '../models/Video';
 import { extractVideoMetadata } from '../utils/videoMetadata';
 import { processingQueue } from '../services/processingQueue';
+import { uploadToSupabase, deleteFromSupabase } from '../services/supabaseStorage';
 import fs from 'fs';
-import path from 'path';
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads/originals';
 
@@ -25,19 +25,25 @@ export const uploadVideo = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const filePath = req.file.path;
-    const fileName = req.file.filename;
+    const fileBuffer = req.file.buffer;
+    const fileName = `${Date.now()}-${req.file.originalname}`;
 
     console.log('Extracting video metadata for:', fileName);
 
     let metadata;
     try {
-      metadata = await extractVideoMetadata(filePath);
+      metadata = await extractVideoMetadata(fileBuffer);
       console.log('Metadata extracted:', metadata);
     } catch (error) {
       console.error('Failed to extract metadata, continuing without it:', error);
       metadata = {};
     }
+
+    const { path: supabasePath, url: supabaseUrl } = await uploadToSupabase(
+      fileBuffer,
+      fileName,
+      process.env.SUPABASE_BUCKET || 'dump'
+    );
 
     const video = await Video.create({
       userId: req.user.id,
@@ -46,7 +52,8 @@ export const uploadVideo = async (req: Request, res: Response): Promise<void> =>
       originalName: req.file.originalname,
       mimeType: req.file.mimetype,
       size: req.file.size,
-      uploadPath: filePath,
+      uploadPath: supabasePath,
+      supabaseBucket: process.env.SUPABASE_BUCKET || 'dump',
       duration: metadata.duration,
       width: metadata.width,
       height: metadata.height,
@@ -58,7 +65,7 @@ export const uploadVideo = async (req: Request, res: Response): Promise<void> =>
     processingQueue.enqueue({
       videoId: video._id.toString(),
       userId: req.user.id,
-      inputPath: filePath,
+      inputPath: supabasePath,
       filename: fileName
     });
 
@@ -188,24 +195,19 @@ export const deleteVideo = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const filePath = video.uploadPath;
-
     await Video.findByIdAndDelete(req.params.id);
 
-    const filesToDelete = [filePath];
+    if (video.uploadPath) {
+      await deleteFromSupabase(video.uploadPath, video.supabaseBucket);
+    }
     if (video.processedPath) {
-      filesToDelete.push(video.processedPath);
+      await deleteFromSupabase(video.processedPath, video.supabaseBucket);
     }
     if (video.thumbnailPath) {
-      filesToDelete.push(video.thumbnailPath);
+      await deleteFromSupabase(video.thumbnailPath, video.supabaseBucket);
     }
 
-    filesToDelete.forEach(file => {
-      if (fs.existsSync(file)) {
-        fs.unlinkSync(file);
-        console.log('File deleted:', file);
-      }
-    });
+    console.log('Files deleted from Supabase:', video._id);
 
     res.json({
       success: true,
@@ -253,58 +255,9 @@ export const streamVideo = async (req: Request, res: Response): Promise<void> =>
 
     const videoPath = video.processedPath || video.uploadPath;
 
-    if (!fs.existsSync(videoPath)) {
-      res.status(404).json({
-        success: false,
-        message: 'Video file not found'
-      });
-      return;
-    }
+    const videoUrl = `https://${process.env.SUPABASE_PROJECT_ID}.supabase.co/storage/v1/object/public/${video.supabaseBucket}/${videoPath}`;
 
-    const stat = fs.statSync(videoPath);
-    const fileSize = stat.size;
-    const range = req.headers.range;
-
-    const corsHeaders = {
-      'Access-Control-Allow-Origin': process.env.FRONTEND_URL || 'http://localhost:5173',
-      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-      'Access-Control-Allow-Headers': 'Range',
-      'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Content-Type, Accept-Ranges'
-    };
-
-    if (range) {
-      const parts = range.replace(/bytes=/, '').split('-');
-      const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-
-      const chunksize = end - start + 1;
-      const file = fs.createReadStream(videoPath, { start, end });
-
-      const head = {
-        ...corsHeaders,
-        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
-        'Accept-Ranges': 'bytes',
-        'Content-Length': chunksize,
-        'Content-Type': video.mimeType,
-        'Content-Disposition': `inline; filename="${video.originalName}"`,
-        'Cache-Control': 'public, max-age=31536000'
-      };
-
-      res.writeHead(206, head);
-      file.pipe(res);
-    } else {
-      const head = {
-        ...corsHeaders,
-        'Content-Length': fileSize,
-        'Content-Type': video.mimeType,
-        'Content-Disposition': `inline; filename="${video.originalName}"`,
-        'Accept-Ranges': 'bytes',
-        'Cache-Control': 'public, max-age=31536000'
-      };
-
-      res.writeHead(200, head);
-      fs.createReadStream(videoPath).pipe(res);
-    }
+    res.redirect(videoUrl);
   } catch (error) {
     console.error('Stream video error:', error);
     if (!res.headersSent) {
