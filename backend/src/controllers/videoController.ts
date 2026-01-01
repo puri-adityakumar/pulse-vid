@@ -269,6 +269,13 @@ export const streamVideo = async (req: Request, res: Response): Promise<void> =>
     const fileSize = stat.size;
     const range = req.headers.range;
 
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': process.env.FRONTEND_URL || 'http://localhost:5173',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Headers': 'Range',
+      'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Content-Type, Accept-Ranges'
+    };
+
     if (range) {
       const parts = range.replace(/bytes=/, '').split('-');
       const start = parseInt(parts[0], 10);
@@ -278,6 +285,7 @@ export const streamVideo = async (req: Request, res: Response): Promise<void> =>
       const file = fs.createReadStream(videoPath, { start, end });
 
       const head = {
+        ...corsHeaders,
         'Content-Range': `bytes ${start}-${end}/${fileSize}`,
         'Accept-Ranges': 'bytes',
         'Content-Length': chunksize,
@@ -290,6 +298,7 @@ export const streamVideo = async (req: Request, res: Response): Promise<void> =>
       file.pipe(res);
     } else {
       const head = {
+        ...corsHeaders,
         'Content-Length': fileSize,
         'Content-Type': video.mimeType,
         'Content-Disposition': `inline; filename="${video.originalName}"`,
