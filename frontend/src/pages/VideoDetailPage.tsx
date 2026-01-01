@@ -60,7 +60,8 @@ export default function VideoDetailPage() {
   const getStreamUrl = () => {
     if (!video) return '';
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    return `${apiUrl}/videos/${video._id}/stream`;
+    const token = localStorage.getItem('token');
+    return `${apiUrl}/videos/${video._id}/stream?token=${token}`;
   };
 
   const getThumbnailUrl = () => {
@@ -96,11 +97,11 @@ export default function VideoDetailPage() {
     });
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, hasError?: boolean) => {
     const styles = {
       pending: 'bg-yellow-100 text-yellow-800',
       processing: 'bg-blue-100 text-blue-800',
-      completed: 'bg-green-100 text-green-800',
+      completed: hasError ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800',
       failed: 'bg-red-100 text-red-800'
     };
 
@@ -233,10 +234,22 @@ export default function VideoDetailPage() {
               />
             </div>
 
+            {video.processingStatus === 'completed' && video.processingError && (
+              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-start">
+                  <AlertCircle className="h-5 w-5 text-yellow-600 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-yellow-900">Processing Warning</p>
+                    <p className="text-sm text-yellow-800 mt-1">{video.processingError}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="mt-6 bg-white rounded-lg shadow-md p-6">
               <h1 className="text-2xl font-bold text-gray-900 mb-2">{video.originalName}</h1>
               <div className="flex items-center space-x-2">
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(video.processingStatus)}`}>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(video.processingStatus, !!video.processingError)}`}>
                   {video.processingStatus === 'completed' && <CheckCircle className="mr-1 h-3 w-3" />}
                   {video.processingStatus}
                 </span>
@@ -300,7 +313,7 @@ export default function VideoDetailPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Status</span>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(video.processingStatus)}`}>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(video.processingStatus, !!video.processingError)}`}>
                     {video.processingStatus}
                   </span>
                 </div>
@@ -312,8 +325,12 @@ export default function VideoDetailPage() {
                 )}
                 {video.processingError && (
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Error</span>
-                    <span className="text-red-600">{video.processingError}</span>
+                    <span className="text-gray-600">
+                      {video.processingStatus === 'completed' ? 'Warning' : 'Error'}
+                    </span>
+                    <span className={video.processingStatus === 'completed' ? 'text-orange-600' : 'text-red-600'}>
+                      {video.processingError}
+                    </span>
                   </div>
                 )}
               </div>

@@ -8,7 +8,7 @@ import { Upload, X, Film, FileVideo, AlertCircle, CheckCircle } from 'lucide-rea
 export default function VideoUploadPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { processingProgress, onProcessingComplete, onProcessingFailed, onProcessingStarted } = useSocket(user?.id);
+  const { processingProgress, onProcessingProgress, onProcessingComplete, onProcessingFailed, onProcessingStarted } = useSocket(user?.id);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -91,20 +91,21 @@ export default function VideoUploadPage() {
     if (!user?.id) return;
 
     const unsubscribeStarted = onProcessingStarted((data) => {
-      if (currentVideoId) {
+      if (currentVideoId && data.videoId === currentVideoId) {
         setCurrentProgress(0);
         setProcessing(true);
       }
     });
 
     const unsubscribeProgress = onProcessingProgress((data) => {
-      if (data.videoId === currentVideoId) {
+      if (currentVideoId && data.videoId === currentVideoId) {
         setCurrentProgress(data.progress);
       }
     });
 
     const unsubscribeComplete = onProcessingComplete((data) => {
-      if (data.videoId === currentVideoId) {
+      console.log('Processing complete event received:', data, 'Current video ID:', currentVideoId);
+      if (currentVideoId && data.videoId === currentVideoId) {
         setCurrentProgress(100);
         setTimeout(() => {
           navigate('/dashboard');
@@ -113,7 +114,7 @@ export default function VideoUploadPage() {
     });
 
     const unsubscribeFailed = onProcessingFailed((data) => {
-      if (data.videoId === currentVideoId) {
+      if (currentVideoId && data.videoId === currentVideoId) {
         setError(`Processing failed: ${data.error}`);
         setProcessing(false);
       }
@@ -125,7 +126,7 @@ export default function VideoUploadPage() {
       unsubscribeComplete?.();
       unsubscribeFailed?.();
     };
-  }, [user?.id, currentVideoId, onProcessingStarted, onProcessingProgress, onProcessingComplete, onProcessingFailed, navigate]);
+  }, [user?.id, onProcessingStarted, onProcessingProgress, onProcessingComplete, onProcessingFailed, navigate]);
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';

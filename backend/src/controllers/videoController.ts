@@ -281,7 +281,7 @@ export const streamVideo = async (req: Request, res: Response): Promise<void> =>
         'Content-Range': `bytes ${start}-${end}/${fileSize}`,
         'Accept-Ranges': 'bytes',
         'Content-Length': chunksize,
-        'Content-Type': 'video/mp4',
+        'Content-Type': video.mimeType,
         'Content-Disposition': `inline; filename="${video.originalName}"`,
         'Cache-Control': 'public, max-age=31536000'
       };
@@ -291,7 +291,7 @@ export const streamVideo = async (req: Request, res: Response): Promise<void> =>
     } else {
       const head = {
         'Content-Length': fileSize,
-        'Content-Type': 'video/mp4',
+        'Content-Type': video.mimeType,
         'Content-Disposition': `inline; filename="${video.originalName}"`,
         'Accept-Ranges': 'bytes',
         'Cache-Control': 'public, max-age=31536000'

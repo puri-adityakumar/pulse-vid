@@ -130,11 +130,11 @@ export default function Dashboard() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, hasError?: boolean) => {
     const styles = {
       pending: 'bg-yellow-100 text-yellow-800',
       processing: 'bg-blue-100 text-blue-800',
-      completed: 'bg-green-100 text-green-800',
+      completed: hasError ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800',
       failed: 'bg-red-100 text-red-800'
     };
 
@@ -338,7 +338,7 @@ export default function Dashboard() {
                          <h3 className="text-lg font-semibold text-gray-900 truncate mb-2">
                            {video.originalName}
                          </h3>
-                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(video.processingStatus)}`}>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(video.processingStatus, !!video.processingError)}`}>
                            {video.processingStatus}
                          </span>
                          {video.processingStatus === 'processing' && video.processingProgress > 0 && (
@@ -382,18 +382,27 @@ export default function Dashboard() {
                          <Clock className="h-4 w-4 mr-2 flex-shrink-0" />
                          <span>Uploaded: {formatDate(video.uploadDate)}</span>
                        </div>
-                     </div>
+                      </div>
 
-                   {video.processingStatus === 'completed' && (
-                     <div className="mt-4 pt-4 border-t border-gray-200">
-                       <div className="flex items-center text-sm text-blue-600 hover:text-blue-700">
-                         <Play className="h-4 w-4 mr-2" />
-                         Watch Video
-                       </div>
-                     </div>
-                   )}
-                 </div>
-               </div>
+                      {video.processingStatus === 'completed' && video.processingError && (
+                        <div className="mt-3 p-2 bg-yellow-50 rounded text-xs text-yellow-700 border border-yellow-200">
+                          <div className="flex items-center">
+                            <Clock className="h-3 w-3 mr-1" />
+                            {video.processingError}
+                          </div>
+                        </div>
+                      )}
+
+                    {video.processingStatus === 'completed' && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <div className="flex items-center text-sm text-blue-600 hover:text-blue-700">
+                          <Play className="h-4 w-4 mr-2" />
+                          Watch Video
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
              );
              })}
            </div>
