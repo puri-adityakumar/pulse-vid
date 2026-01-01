@@ -3,7 +3,6 @@ import path from 'path';
 import fs from 'fs';
 import Video, { IVideo } from '../models/Video';
 import { emitToUser } from '../config/socket';
-import supabase from '../config/supabase';
 import { uploadToSupabase } from './supabaseStorage';
 
 export interface ProcessVideoOptions {
@@ -19,7 +18,7 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
   console.log(`Starting video processing: ${videoId}`);
 
   try {
-    const video = await Video.findById(videoId);
+    const video = await Video.findById(videoId) as IVideo;
     if (!video) {
       throw new Error('Video not found');
     }
@@ -40,6 +39,9 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
 
     let lastProgressUpdate = 0;
     let ffmpegAvailable = true;
+
+    let processedPath: string = '';
+    let thumbnailPath: string = '';
 
     try {
       await new Promise<void>((resolve, reject) => {
@@ -76,20 +78,21 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
           .on('end', async () => {
             console.log('Video processing completed');
 
-            const updatedVideo = await Video.findById(videoId);
-            if (!updatedVideo) {
+            const currentVideo = await Video.findById(videoId) as IVideo;
+            if (!currentVideo) {
               reject(new Error('Video not found'));
               return;
             }
 
             const processedBuffer = fs.readFileSync(processedFilename);
-            const { path: processedPath, url: processedUrl } = await uploadToSupabase(
+            const { path: pPath, url: pUrl } = await uploadToSupabase(
               processedBuffer,
               processedFilename,
-              updatedVideo.supabaseBucket
+              currentVideo.supabaseBucket
             );
 
-            console.log('Processed video uploaded to Supabase:', processedUrl);
+            processedPath = pPath;
+            console.log('Processed video uploaded to Supabase:', pUrl);
             resolve();
           })
           .on('error', (err, stdout, stderr) => {
@@ -139,35 +142,21 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
           .on('end', async () => {
             console.log('Thumbnail extracted');
 
-            const thumbnailBuffer = fs.readFileSync(thumbnailFilename);
-            const { path: thumbPath, url: thumbUrl } = await uploadToSupabase(
-              thumbnailBuffer,
-              thumbnailFilename,
-              updatedVideo.supabaseBucket
-            );
-
-            console.log('Thumbnail uploaded to Supabase:', thumbUrl);
-
-            const finalVideo = await Video.findById(videoId);
-            if (!finalVideo) {
+            const currentVideo = await Video.findById(videoId) as IVideo;
+            if (!currentVideo) {
               reject(new Error('Video not found'));
               return;
             }
 
-            await Video.findByIdAndUpdate(videoId, {
-              processedPath: finalVideo.processedPath || processedPath,
-              thumbnailPath: thumbPath,
-              processingStatus: 'completed',
-              processingProgress: 100
-            });
+            const thumbnailBuffer = fs.readFileSync(thumbnailFilename);
+            const { path: tPath, url: tUrl } = await uploadToSupabase(
+              thumbnailBuffer,
+              thumbnailFilename,
+              currentVideo.supabaseBucket
+            );
 
-            emitToUser(userId, 'video:processing:complete', {
-              videoId,
-              processedPath: finalVideo.processedPath || processedPath,
-              thumbnailPath: thumbPath
-            });
-
-            console.log(`Video processing completed successfully: ${videoId}`);
+            thumbnailPath = tPath;
+            console.log('Thumbnail uploaded to Supabase:', tUrl);
             resolve();
           })
           .on('error', (err) => {
@@ -183,6 +172,21 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
     } catch (error) {
       console.log('Thumbnail generation failed, continuing without it');
     }
+
+    await Video.findByIdAndUpdate(videoId, {
+      processedPath: processedPath,
+      thumbnailPath: thumbnailPath,
+      processingStatus: 'completed',
+      processingProgress: 100
+    });
+
+    emitToUser(userId, 'video:processing:complete', {
+      videoId,
+      processedPath,
+      thumbnailPath
+    });
+
+    console.log(`Video processing completed successfully: ${videoId}`);
 
   } catch (error) {
     console.error('Video processing error:', error);

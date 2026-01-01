@@ -1,6 +1,4 @@
 import ffmpeg from 'fluent-ffmpeg';
-import path from 'path';
-import fs from 'fs';
 
 export interface VideoMetadata {
   duration?: number;
@@ -8,17 +6,17 @@ export interface VideoMetadata {
   height?: number;
 }
 
-export const extractVideoMetadata = async (filePath: string): Promise<VideoMetadata> => {
+export const extractVideoMetadata = async (input: string | Buffer): Promise<VideoMetadata> => {
   try {
     const result = await new Promise<VideoMetadata>((resolve, reject) => {
-      ffmpeg.ffprobe(filePath, (err, metadata) => {
+      ffmpeg.ffprobe(input, (err, metadata) => {
         if (err) {
           reject(err);
           return;
         }
 
         const videoStream = metadata.streams.find(stream => stream.codec_type === 'video');
-        
+
         const metadataResult: VideoMetadata = {};
 
         if (videoStream) {

@@ -57,7 +57,8 @@ const videoSchema = new Schema<IVideo>({
     type: String
   },
   supabaseBucket: {
-    type: String
+    type: String,
+    required: true
   },
   duration: {
     type: Number
