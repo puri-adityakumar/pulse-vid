@@ -16,7 +16,7 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: '*',
   credentials: true
 }));
 app.use(morgan('dev'));
@@ -30,7 +30,18 @@ app.use('/api/videos', videoRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Server is running' });
+  const healthCheck = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    services: {
+      database: 'MongoDB Atlas',
+      storage: 'Supabase'
+    },
+    version: '1.0.0'
+  };
+  res.status(200).json(healthCheck);
 });
 
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {

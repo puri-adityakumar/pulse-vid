@@ -143,3 +143,162 @@ Expected behavior:
 - Verify VITE_SOCKET_URL in frontend .env matches backend URL
 - Check backend logs for Socket.io initialization
 - Ensure Socket.io server is running before frontend connects
+
+## Deploy Backend to Render
+
+### Prerequisites
+
+1. **MongoDB Atlas**
+   - ✓ Database cluster created
+   - ✓ "Allow access from anywhere" in IP whitelist
+   - ✓ Connection string ready
+
+2. **Supabase**
+   - ✓ Project created
+   - ✓ Storage bucket "dump" exists
+   - ✓ RLS policies configured (see above)
+   - ✓ Service role key available
+
+3. **GitHub**
+   - ✓ Repository pushed with latest code
+   - ✓ All changes committed
+
+### Deployment Steps
+
+#### Step 1: Create Render Web Service
+
+1. Go to https://dashboard.render.com
+2. Click **"New +"** → **"Web Service"**
+3. Connect your GitHub repository
+4. Select the `pulse-vid-assesment` repository
+5. Configure:
+
+   **Name**: `pulse-video-backend` (or any name you prefer)
+
+   **Runtime**: `Docker`
+
+   **Build & Deploy**:
+   - **Context**: `./backend`
+   - **Dockerfile Path**: `Dockerfile`
+
+   **Instance Type**:
+   - **Free** (512MB RAM, 0.1 CPU) - *May be slow for video processing*
+   - **Starter** ($7/mo, 2GB RAM) - *Recommended for video processing*
+
+   **Region**: Select region closest to your users
+
+6. Click **"Create Web Service"**
+
+#### Step 2: Configure Environment Variables
+
+After creating the service, add these environment variables in the Render dashboard:
+
+| Variable | Value | Notes |
+|----------|-------|-------|
+| `PORT` | `5000` | Required |
+| `NODE_ENV` | `production` | Required |
+| `MONGODB_URI` | `mongodb+srv://...` | Get from Atlas |
+| `JWT_SECRET` | `<generate strong secret>` | Use password generator |
+| `JWT_EXPIRE` | `24h` | Optional |
+| `FRONTEND_URL` | `*` | CORS - all origins allowed |
+| `SUPABASE_URL` | `https://xxx.supabase.co` | From Supabase dashboard |
+| `SUPABASE_SERVICE_ROLE_KEY` | `<your-service-role-key>` | From Supabase dashboard |
+| `SUPABASE_BUCKET` | `dump` | Your bucket name |
+| `SUPABASE_PROJECT_ID` | `<your-project-id>` | From Supabase URL |
+
+**Generating JWT_SECRET**:
+```bash
+# Generate a secure random string
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+#### Step 3: Verify Deployment
+
+1. Wait for deployment to complete (green checkmark)
+2. Click on the service URL (e.g., `https://pulse-video-backend.onrender.com`)
+3. Test health endpoint: `https://your-url.onrender.com/health`
+   - Should return: `{"status":"ok","timestamp":"...","uptime":...}`
+4. Check logs in Render dashboard for any errors
+
+#### Step 4: Update Frontend Configuration
+
+In your frontend, update `VITE_API_URL`:
+
+```env
+# frontend/.env
+VITE_API_URL=https://your-backend.onrender.com/api
+VITE_SOCKET_URL=https://your-backend.onrender.com
+```
+
+### Free Tier Limitations
+
+Render's free tier has these limitations:
+
+- **512MB RAM**: FFmpeg processing may fail with large videos
+- **0.1 CPU**: Video processing will be slow
+- **512MB Disk**: Ephemeral storage (wiped on redeploy)
+  - This is OK because videos are stored in Supabase
+  - Temp files are deleted after processing
+- **Sleep**: Services sleep after 15min inactivity
+  - Wakes up automatically on next request
+  - May cause Socket.io disconnects
+
+**Recommendation**: Upgrade to Starter plan ($7/mo) for production video processing.
+
+### Troubleshooting Render Deployment
+
+#### Build Fails
+
+**Issue**: Docker build fails or times out
+**Solution**:
+- Check build logs in Render dashboard
+- Ensure `Dockerfile` exists in `backend/` directory
+- FFmpeg installation can be slow - try increasing timeout in Render settings
+
+#### Health Check Fails
+
+**Issue**: Health check endpoint fails
+**Solution**:
+- Check `/health` endpoint is accessible
+- Verify backend logs for startup errors
+- Ensure MongoDB connection is working
+
+#### Video Processing Fails
+
+**Issue**: Videos fail to process (out of memory, timeout)
+**Solution**:
+- Upgrade to Starter plan (more RAM/CPU)
+- Reduce max file size in frontend
+- Check logs: `ffmpeg exited with code 137` (OOM)
+
+#### MongoDB Connection Fails
+
+**Issue**: "MongoNetworkError" in logs
+**Solution**:
+- Verify MongoDB URI is correct
+- Check Atlas IP whitelist includes "0.0.0.0/0" (all IPs)
+- Ensure Atlas cluster is running (not paused)
+
+#### Socket.io Connection Issues
+
+**Issue**: Frontend can't connect to Socket.io
+**Solution**:
+- Ensure `VITE_SOCKET_URL` matches Render URL exactly
+- Check CORS is set to `*` (already configured)
+- Verify frontend URL is using HTTPS (Render requires it)
+
+### Monitoring Your Deployment
+
+**Render Dashboard**:
+- View real-time logs
+- Monitor CPU, memory, and disk usage
+- Check deployment history
+- Scale instances (paid plans)
+
+**Health Check**:
+- Access `https://your-url.onrender.com/health` anytime
+- Returns: uptime, status, environment, services info
+
+**Database Monitoring**:
+- MongoDB Atlas: Real-time metrics, slow queries
+- Supabase Dashboard: Storage usage, request logs
