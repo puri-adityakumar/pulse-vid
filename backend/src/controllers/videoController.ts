@@ -96,7 +96,6 @@ export const getVideos = async (req: Request, res: Response): Promise<void> => {
     const status = req.query.status as string;
 
     const query: any = {
-      userId: req.user.id,
       organizationId: req.user.organizationId
     };
 
@@ -142,7 +141,6 @@ export const getVideoById = async (req: Request, res: Response): Promise<void> =
 
     const video = await Video.findOne({
       _id: req.params.id,
-      userId: req.user.id,
       organizationId: req.user.organizationId
     });
 
@@ -179,7 +177,6 @@ export const deleteVideo = async (req: Request, res: Response): Promise<void> =>
 
     const video = await Video.findOne({
       _id: req.params.id,
-      userId: req.user.id,
       organizationId: req.user.organizationId
     });
 
@@ -235,7 +232,6 @@ export const streamVideo = async (req: Request, res: Response): Promise<void> =>
 
     const video = await Video.findOne({
       _id: req.params.id,
-      userId: req.user.id,
       organizationId: req.user.organizationId
     });
 

@@ -17,6 +17,6 @@ router.options('/:id/stream', (req, res) => {
   res.header('Access-Control-Allow-Credentials', 'true');
   res.status(200).send();
 });
-router.delete('/:id', protect, authorize('admin', 'editor'), deleteVideo);
+router.delete('/:id', protect, authorize('admin'), deleteVideo);
 
 export default router;
