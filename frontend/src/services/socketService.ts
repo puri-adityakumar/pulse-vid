@@ -17,23 +17,35 @@ class SocketService {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 5
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 10,
+      timeout: 20000,
+      forceNew: false
     });
 
     this.socket.on('connect', () => {
-      console.log('Connected to Socket.io server');
+      console.log('✓ Connected to Socket.io server. Socket ID:', this.socket?.id);
     });
 
-    this.socket.on('disconnect', () => {
-      console.log('Disconnected from Socket.io server');
+    this.socket.on('disconnect', (reason) => {
+      console.log('✗ Disconnected from Socket.io server. Reason:', reason);
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
+      console.error('✗ Socket connection error:', error.message);
+      console.error('✗ Check if backend is running on:', SOCKET_URL);
     });
 
     this.socket.on('reconnect', (attemptNumber) => {
-      console.log(`Reconnected to Socket.io server after ${attemptNumber} attempts`);
+      console.log(`✓ Reconnected to Socket.io server after ${attemptNumber} attempts`);
+    });
+
+    this.socket.on('reconnect_attempt', (attemptNumber) => {
+      console.log(`ℹ Reconnection attempt ${attemptNumber}...`);
+    });
+
+    this.socket.on('reconnect_failed', () => {
+      console.error('✗ Failed to reconnect to Socket.io server');
     });
   }
 
