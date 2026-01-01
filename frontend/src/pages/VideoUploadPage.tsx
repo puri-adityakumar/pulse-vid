@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { uploadVideo } from '../services/videoService';
+import { uploadVideo, getVideoById } from '../services/videoService';
 import { useSocket } from '../hooks/useSocket';
 import { Upload, X, Film, FileVideo, AlertCircle, CheckCircle } from 'lucide-react';
 
@@ -16,6 +16,7 @@ export default function VideoUploadPage() {
   const [currentProgress, setCurrentProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleFileSelect = (file: File) => {
     const allowedTypes = ['video/mp4', 'video/avi', 'video/mov', 'video/mkv', 'video/webm'];
@@ -73,6 +74,8 @@ export default function VideoUploadPage() {
       setCurrentVideoId(response.video._id);
       setUploading(false);
       setProcessing(true);
+
+      startPolling(response.video._id);
     } catch (err: any) {
       console.error('Upload error:', err);
       setError(err.response?.data?.message || 'Failed to upload video. Please try again.');
@@ -85,6 +88,40 @@ export default function VideoUploadPage() {
     setError(null);
     setCurrentProgress(0);
     setProcessing(false);
+  };
+
+  const startPolling = (videoId: string) => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+    }
+
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const response = await getVideoById(videoId);
+        const video = response.video;
+
+        if (video.processingStatus === 'completed') {
+          setCurrentProgress(100);
+          setProcessing(false);
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+          }
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 1000);
+        } else if (video.processingStatus === 'failed') {
+          setError(`Processing failed: ${video.processingError || 'Unknown error'}`);
+          setProcessing(false);
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+          }
+        } else if (video.processingStatus === 'processing' && video.processingProgress > 0) {
+          setCurrentProgress(video.processingProgress);
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    }, 2000);
   };
 
   useEffect(() => {
@@ -107,6 +144,9 @@ export default function VideoUploadPage() {
       console.log('Processing complete event received:', data, 'Current video ID:', currentVideoId);
       if (currentVideoId && data.videoId === currentVideoId) {
         setCurrentProgress(100);
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+        }
         setTimeout(() => {
           navigate('/dashboard');
         }, 1000);
@@ -126,7 +166,15 @@ export default function VideoUploadPage() {
       unsubscribeComplete?.();
       unsubscribeFailed?.();
     };
-  }, [user?.id, onProcessingStarted, onProcessingProgress, onProcessingComplete, onProcessingFailed, navigate]);
+  }, [user?.id, onProcessingStarted, onProcessingProgress, onProcessingComplete, onProcessingFailed, navigate, currentVideoId]);
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
