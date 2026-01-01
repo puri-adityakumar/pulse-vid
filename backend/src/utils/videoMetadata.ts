@@ -37,7 +37,10 @@ export const extractVideoMetadata = async (input: string | Buffer): Promise<Vide
 
     return result;
   } catch (error) {
-    console.log('FFprobe not available, using basic file metadata only');
+    console.warn('FFprobe not available. Install FFmpeg to extract video metadata.');
+    console.warn('Windows: Download from https://ffmpeg.org/download.html and add to PATH');
+    console.warn('Mac: brew install ffmpeg');
+    console.warn('Linux: sudo apt-get install ffmpeg');
     return {};
   }
 };
