@@ -10,6 +10,7 @@ export interface IVideo extends Document {
   uploadPath: string;
   processedPath?: string;
   thumbnailPath?: string;
+  supabaseBucket: string;
   duration?: number;
   width?: number;
   height?: number;
