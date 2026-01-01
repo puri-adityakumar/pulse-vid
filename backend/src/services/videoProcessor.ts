@@ -3,9 +3,8 @@ import path from 'path';
 import fs from 'fs';
 import Video, { IVideo } from '../models/Video';
 import { emitToUser } from '../config/socket';
-
-const PROCESSED_DIR = process.env.PROCESSED_DIR || './uploads/processed';
-const THUMBNAILS_DIR = process.env.THUMBNAILS_DIR || './uploads/thumbnails';
+import supabase from '../config/supabase';
+import { uploadToSupabase } from './supabaseStorage';
 
 export interface ProcessVideoOptions {
   videoId: string;
@@ -35,22 +34,9 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
       status: 'processing'
     });
 
-    const processedDir = PROCESSED_DIR;
-    const thumbnailsDir = THUMBNAILS_DIR;
-
-    if (!fs.existsSync(processedDir)) {
-      fs.mkdirSync(processedDir, { recursive: true });
-    }
-
-    if (!fs.existsSync(thumbnailsDir)) {
-      fs.mkdirSync(thumbnailsDir, { recursive: true });
-    }
-
     const baseName = path.parse(filename).name;
     const processedFilename = `${baseName}_processed.mp4`;
-    const processedPath = path.join(processedDir, processedFilename);
     const thumbnailFilename = `${baseName}_thumbnail.jpg`;
-    const thumbnailPath = path.join(thumbnailsDir, thumbnailFilename);
 
     let lastProgressUpdate = 0;
     let ffmpegAvailable = true;
@@ -58,7 +44,7 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
     try {
       await new Promise<void>((resolve, reject) => {
         ffmpeg(inputPath)
-          .output(processedPath)
+          .output(processedFilename)
           .videoCodec('libx264')
           .audioCodec('aac')
           .size('?x1080')
@@ -72,11 +58,11 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
           })
           .on('progress', (progress) => {
             const currentProgress = Math.floor(progress.percent || 0);
-            
+
             if (currentProgress > lastProgressUpdate + 5) {
               lastProgressUpdate = currentProgress;
               console.log(`Processing progress: ${currentProgress}%`);
-              
+
               Video.findByIdAndUpdate(videoId, {
                 processingProgress: currentProgress
               }).catch(err => console.error('Failed to update progress:', err));
@@ -89,12 +75,27 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
           })
           .on('end', async () => {
             console.log('Video processing completed');
+
+            const updatedVideo = await Video.findById(videoId);
+            if (!updatedVideo) {
+              reject(new Error('Video not found'));
+              return;
+            }
+
+            const processedBuffer = fs.readFileSync(processedFilename);
+            const { path: processedPath, url: processedUrl } = await uploadToSupabase(
+              processedBuffer,
+              processedFilename,
+              updatedVideo.supabaseBucket
+            );
+
+            console.log('Processed video uploaded to Supabase:', processedUrl);
             resolve();
           })
           .on('error', (err, stdout, stderr) => {
             console.error('FFmpeg error:', err);
             console.error('FFmpeg stderr:', stderr);
-            
+
             if (err.message.includes('Cannot find ffmpeg') || err.message.includes('ENOENT')) {
               ffmpegAvailable = false;
               reject(err);
@@ -131,13 +132,42 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
         ffmpeg(inputPath)
           .screenshots({
             count: 1,
-            folder: thumbnailsDir,
             filename: thumbnailFilename,
             size: '320x?',
             timemarks: ['5']
           })
-          .on('end', () => {
+          .on('end', async () => {
             console.log('Thumbnail extracted');
+
+            const thumbnailBuffer = fs.readFileSync(thumbnailFilename);
+            const { path: thumbPath, url: thumbUrl } = await uploadToSupabase(
+              thumbnailBuffer,
+              thumbnailFilename,
+              updatedVideo.supabaseBucket
+            );
+
+            console.log('Thumbnail uploaded to Supabase:', thumbUrl);
+
+            const finalVideo = await Video.findById(videoId);
+            if (!finalVideo) {
+              reject(new Error('Video not found'));
+              return;
+            }
+
+            await Video.findByIdAndUpdate(videoId, {
+              processedPath: finalVideo.processedPath || processedPath,
+              thumbnailPath: thumbPath,
+              processingStatus: 'completed',
+              processingProgress: 100
+            });
+
+            emitToUser(userId, 'video:processing:complete', {
+              videoId,
+              processedPath: finalVideo.processedPath || processedPath,
+              thumbnailPath: thumbPath
+            });
+
+            console.log(`Video processing completed successfully: ${videoId}`);
             resolve();
           })
           .on('error', (err) => {
@@ -154,29 +184,9 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
       console.log('Thumbnail generation failed, continuing without it');
     }
 
-    const updatedVideo = await Video.findById(videoId);
-    if (!updatedVideo) {
-      throw new Error('Video not found');
-    }
-
-    await Video.findByIdAndUpdate(videoId, {
-      processedPath: processedPath,
-      thumbnailPath: thumbnailPath,
-      processingStatus: 'completed',
-      processingProgress: 100
-    });
-
-    emitToUser(userId, 'video:processing:complete', {
-      videoId,
-      processedPath: processedPath,
-      thumbnailPath: thumbnailPath
-    });
-
-    console.log(`Video processing completed successfully: ${videoId}`);
-
   } catch (error) {
     console.error('Video processing error:', error);
-    
+
     await Video.findByIdAndUpdate(videoId, {
       processingStatus: 'failed',
       processingError: (error as Error).message
