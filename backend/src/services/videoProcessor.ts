@@ -146,7 +146,7 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
         ffmpeg(localInputPath)
           .screenshots({
             count: 1,
-            filename: thumbnailFilename,
+            filename: path.join(tempDir, thumbnailFilename),
             size: '320x?',
             timemarks: ['5']
           })
