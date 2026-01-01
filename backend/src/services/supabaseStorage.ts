@@ -43,13 +43,9 @@ export const getPublicUrl = async (
   filename: string,
   bucket: string = 'dump'
 ): Promise<string> => {
-  const { data, error } = await supabase.storage
+  const { data } = await supabase.storage
     .from(bucket)
     .getPublicUrl(filename);
-
-  if (error) {
-    throw new Error(`Failed to get public URL: ${error.message}`);
-  }
 
   return data.publicUrl;
 };

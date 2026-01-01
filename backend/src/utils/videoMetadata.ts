@@ -1,4 +1,7 @@
 import ffmpeg from 'fluent-ffmpeg';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 export interface VideoMetadata {
   duration?: number;
@@ -8,8 +11,19 @@ export interface VideoMetadata {
 
 export const extractVideoMetadata = async (input: string | Buffer): Promise<VideoMetadata> => {
   try {
+    let inputPath: string;
+
+    if (Buffer.isBuffer(input)) {
+      const tempDir = os.tmpdir();
+      const tempFile = path.join(tempDir, `video-${Date.now()}.tmp`);
+      fs.writeFileSync(tempFile, input);
+      inputPath = tempFile;
+    } else {
+      inputPath = input as string;
+    }
+
     const result = await new Promise<VideoMetadata>((resolve, reject) => {
-      ffmpeg.ffprobe(input, (err, metadata) => {
+      ffmpeg.ffprobe(inputPath, (err, metadata) => {
         if (err) {
           reject(err);
           return;
@@ -34,6 +48,10 @@ export const extractVideoMetadata = async (input: string | Buffer): Promise<Vide
         resolve(metadataResult);
       });
     });
+
+    if (Buffer.isBuffer(input) && fs.existsSync(inputPath)) {
+      fs.unlinkSync(inputPath);
+    }
 
     return result;
   } catch (error) {
