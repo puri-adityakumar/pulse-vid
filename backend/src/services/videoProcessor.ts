@@ -1,9 +1,10 @@
 import ffmpeg from 'fluent-ffmpeg';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import Video, { IVideo } from '../models/Video';
 import { emitToUser } from '../config/socket';
-import { uploadToSupabase } from './supabaseStorage';
+import { uploadToSupabase, downloadFromSupabase } from './supabaseStorage';
 
 export interface ProcessVideoOptions {
   videoId: string;
@@ -16,6 +17,13 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
   const { videoId, userId, inputPath, filename } = options;
 
   console.log(`Starting video processing: ${videoId}`);
+
+  const baseName = path.parse(filename).name;
+  const processedFilename = `${baseName}_processed.mp4`;
+  const thumbnailFilename = `${baseName}_thumbnail.jpg`;
+
+  const tempDir = os.tmpdir();
+  const localInputPath = path.join(tempDir, filename);
 
   try {
     const video = await Video.findById(videoId) as IVideo;
@@ -33,9 +41,12 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
       status: 'processing'
     });
 
-    const baseName = path.parse(filename).name;
-    const processedFilename = `${baseName}_processed.mp4`;
-    const thumbnailFilename = `${baseName}_thumbnail.jpg`;
+    console.log(`Downloading video from Supabase: ${inputPath}`);
+
+    const videoBuffer = await downloadFromSupabase(inputPath, video.supabaseBucket);
+    fs.writeFileSync(localInputPath, videoBuffer);
+
+    console.log(`Video downloaded to: ${localInputPath}`);
 
     let lastProgressUpdate = 0;
     let ffmpegAvailable = true;
@@ -45,8 +56,8 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
 
     try {
       await new Promise<void>((resolve, reject) => {
-        ffmpeg(inputPath)
-          .output(processedFilename)
+        ffmpeg(localInputPath)
+          .output(path.join(tempDir, processedFilename))
           .videoCodec('libx264')
           .audioCodec('aac')
           .size('?x1080')
@@ -84,7 +95,7 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
               return;
             }
 
-            const processedBuffer = fs.readFileSync(processedFilename);
+            const processedBuffer = fs.readFileSync(path.join(tempDir, processedFilename));
             const { path: pPath, url: pUrl } = await uploadToSupabase(
               processedBuffer,
               processedFilename,
@@ -132,7 +143,7 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
 
     try {
       await new Promise<void>((resolve, reject) => {
-        ffmpeg(inputPath)
+        ffmpeg(localInputPath)
           .screenshots({
             count: 1,
             filename: thumbnailFilename,
@@ -148,7 +159,7 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
               return;
             }
 
-            const thumbnailBuffer = fs.readFileSync(thumbnailFilename);
+            const thumbnailBuffer = fs.readFileSync(path.join(tempDir, thumbnailFilename));
             const { path: tPath, url: tUrl } = await uploadToSupabase(
               thumbnailBuffer,
               thumbnailFilename,
@@ -200,5 +211,22 @@ export const processVideo = async (options: ProcessVideoOptions): Promise<void> 
       videoId,
       error: (error as Error).message
     });
+  } finally {
+    if (fs.existsSync(localInputPath)) {
+      fs.unlinkSync(localInputPath);
+      console.log(`Cleaned up temp file: ${localInputPath}`);
+    }
+
+    const processedFile = path.join(tempDir, processedFilename);
+    if (fs.existsSync(processedFile)) {
+      fs.unlinkSync(processedFile);
+      console.log(`Cleaned up temp file: ${processedFile}`);
+    }
+
+    const thumbnailFile = path.join(tempDir, thumbnailFilename);
+    if (fs.existsSync(thumbnailFile)) {
+      fs.unlinkSync(thumbnailFile);
+      console.log(`Cleaned up temp file: ${thumbnailFile}`);
+    }
   }
 };

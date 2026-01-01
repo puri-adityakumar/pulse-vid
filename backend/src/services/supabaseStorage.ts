@@ -1,5 +1,20 @@
 import supabase from '../config/supabase';
 
+export const downloadFromSupabase = async (
+  path: string,
+  bucket: string = 'dump'
+): Promise<Buffer> => {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .download(path);
+
+  if (error) {
+    throw new Error(`Failed to download from Supabase: ${error.message}`);
+  }
+
+  return Buffer.from(await data.arrayBuffer());
+};
+
 export const uploadToSupabase = async (
   file: Buffer,
   filename: string,
